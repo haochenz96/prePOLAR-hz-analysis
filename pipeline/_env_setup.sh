@@ -4,33 +4,42 @@
 # bash Mambaforge-$(uname)-$(uname -m).sh
 
 
-# # ----- install mamba if needed -----
-# conda install mamba -n base -c conda-forge
-
-
 ################
 #### SCANPY ####
 ################
 
 
-# ----- scanpy and R -----
+# ----- scanpy -----
 mamba create -n scanpy -c conda-forge scanpy python-igraph leidenalg r-essentials r-base=4.2.2
+pip install ipython
+# # or we can directly install scanpy from Github
+# cd /home/zhangh5/work/prePOLAR/analysis/tools
+# git@github.com:scverse/scanpy.git
+# cd scanpy
+# pip install -e '.[dev,doc,test]'
 
-# we will directly install from Github
-cd /home/zhangh5/work/prePOLAR/analysis/tools
-git@github.com:scverse/scanpy.git
-cd scanpy
-pip install -e '.[dev,doc,test]'
-
-# update gcc for scrublet: 
+# might need to update gcc for scrublet: 
 # mamba install gcc=12.2.0
 pip install scrublet
+# or if compilation does not work, use mamba
+# # mamba install -c bioconda scrublet
 
 # ######## [OPTIONAL] #########
+
+# # ----- R -----
+# mamba install r-essentials r-base=4.2.2 r-devtools r-gam r-RColorBrewer r-BiocManager r-Seurat r-sctransform
+
+# might want to install libpng because libpng --> ragg --> devtools/many other R tools above
+
+# # might need a new compiler for r-devtools
+# mamba install libgit2
+
+# open R and run _R_env-setup.R
+
 # # ----- install scib -----
 # pip install scib
 
-# # optional packages
+# # ----- rpy2 -----
 # export CFLAGS=-std=c99 # for rpy2 [https://github.com/rpy2/rpy2/issues/963]
 # pip install rpy2
 

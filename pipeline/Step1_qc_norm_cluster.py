@@ -103,10 +103,10 @@ def basic_plots(adata, out_pdf, show_outlier = None):
                 axes[i].legend(bbox_to_anchor = (1.0, 1), loc = 'upper right', prop={'size':5})
 
     # save to pdf
-    with PdfPages('foo.pdf') as out_pdf:
-        out_pdf.savefig(fig1)
-        out_pdf.savefig(fig2)
-        out_pdf.savefig(fig3)
+    with PdfPages(out_pdf) as out:
+        out.savefig(fig1)
+        out.savefig(fig2)
+        out.savefig(fig3)
 
 # ----- filters -----
 
@@ -253,10 +253,6 @@ def log1p_normalize_data(adata):
 #     )
 #     del adata_pp
 
-    
-
-
-
 # ----- plot highly variable genes data -----
 def plot_hvg(adata, sample_name = '', write_figure=True):
     sc.pp.highly_variable_genes(adata, min_mean=0.0125, max_mean=3, min_disp=0.5, n_top_genes=1000)
@@ -277,13 +273,13 @@ def cluster_data(adata, sample_name = '', output_dir = None):
         out_f_prefix = f'{sample_name}-'
 
     sc.pl.pca(adata, color='CST3', show=False, save=f'{out_f_prefix}pca.png')
-    sc.pl.pca_variance_ratio(adata, log=True, show=False, save=f'{out_f_prefix}pcavariance.png')
+    sc.pl.pca_variance_ratio(adata, log=True, show=False, save=f'{out_f_prefix}pca_variance.png')
 
 
 # ----- 
 
 # ===== Karthik wrappers =====
-def karthik_annotate_data(adata):
+def karthik_annotate_data(adata): # @HZ: this is basically calculate_qc_metrics + karthik_normalize_data
     print(adata)
     mito_genes = adata.var_names.str.startswith('MT-')
     adata.obs['percent_mito'] = np.sum(adata[:, mito_genes].X, axis=1).A1 / np.sum(adata.X, axis=1).A1
@@ -314,7 +310,7 @@ def karthik_plot_QC(adata, sample_name):
 
 def karthik_analyze_data(adata, resolution=None):
 
-    genemarkers = load_karthik_genemarkers('/home/zhangh5/work/prePOLAR/analysis/reference/karthik-gene_markers.use.txt')
+    genemarkers = load_karthik_genemarkers('/home/zhangh5/work/prePOLAR/hz-analysis/reference/karthik-gene_markers.use.txt')
     broad_celltypes = get_broad_celltypes()
     
     sc.tl.pca(adata, svd_solver='arpack')
@@ -334,15 +330,14 @@ def karthik_analyze_data(adata, resolution=None):
         sc.tl.rank_genes_groups(adata, 'leiden', method='t-test', use_raw=True)
     return adata
 
-def karthik_more_plots(adata, sample_name):
+def karthik_more_plots(adata, sample_name, figure_suffix='pdf'):
     COLORS = my_palette
 
-
     broad_celltypes = get_broad_celltypes()
-    sc.pl.pca(adata, color=['percent_mito', 'n_genes', 'n_counts'], cmap="jet", save=f'{sample_name}-PCA-QC.pdf')
-    sc.pl.pca_variance_ratio(adata, log=True, save=f'{sample_name}-PCA-var_ratio.pdf')
-    sc.pl.umap(adata, color=['n_genes', 'scrublet_scores', 'batch', 'leiden'], palette=COLORS, save=f'{sample_name}-UMAP-QC.pdf')
-    sc.pl.umap(adata, color=['CFTR', 'ANXA2', 'IL7R', 'KRT19', 'PTPRC', 'PECAM1', 'ACTA2', 'CD96', 'MRC1', 'CD163', 'KRAS'],  cmap="jet", save=f'{sample_name}-UMAP-marker_genes.pdf')
+    sc.pl.pca(adata, color=['percent_mito', 'n_genes', 'n_counts'], cmap="jet", save=f'{sample_name}-PCA-QC.{figure_suffix}')
+    sc.pl.pca_variance_ratio(adata, log=True, save=f'{sample_name}-PCA-var_ratio.{figure_suffix}')
+    sc.pl.umap(adata, color=['n_genes', 'scrublet_scores', 'sample_name', 'leiden'], palette=COLORS, save=f'{sample_name}-UMAP-QC.{figure_suffix}')
+    sc.pl.umap(adata, color=['CFTR', 'ANXA2', 'IL7R', 'KRT19', 'PTPRC', 'PECAM1', 'ACTA2', 'CD96', 'MRC1', 'CD163', 'KRAS'],  cmap="jet", save=f'{sample_name}-UMAP-marker_genes.{figure_suffix}')
 
     print ("Broad Cell types")
     sc.pl.umap(adata, color=broad_celltypes.keys(), cmap="jet")
@@ -350,68 +345,89 @@ def karthik_more_plots(adata, sample_name):
     for broad_celltype, specific_celltypes in broad_celltypes.items():
         if len(specific_celltypes) > 1:
             print(broad_celltype)
-            sc.pl.umap(adata, color=specific_celltypes, cmap="jet", save=f'{sample_name}-UMAP-{broad_celltype}.pdf')
+            sc.pl.umap(adata, color=specific_celltypes, cmap="jet", save=f'{sample_name}-UMAP-{broad_celltype}.{figure_suffix}')
 
     sc.pl.rank_genes_groups(adata, n_genes=25, sharey=False)
     return adata
 
-def karthik_process_pdac_data(h5_in_dir, data_type, h5_out_dir):
+def karthik_combine_and_process_pdac_data(h5ad_in_dir, output_prefix, h5_out_dir):
     #filenames = glob("/ahg/regevdata/projects/Pancreas/alignreads/*_10x/*-NSTnPo*/raw_*.h5")
-    h5_fs = glob(f"{h5_in_dir}/*.h5")
+    h5_fs = glob(f"{h5ad_in_dir}/*.h5ad")
     combined_data = []
     for filename in h5_fs:
-        naivedata = load_h5_data(filename)
-        combined_data.append(naivedata)
+        individual_adata = sc.read_h5ad(filename)
+
+        if not 'sample_name' in individual_adata.obs.columns:
+            print(f"[WARNING] `sample_name` not found in adataobs.columns; inferring from {filename}!")
+            individual_adata.obs['sample_name'] = filename.split('/')[-1].split('.h5ad')[0] # infer from filename
+        combined_data.append(individual_adata)
 
     # direct concatentation of all data
-    naivedata = combined_data[0].concatenate(combined_data[1:])
+    combined_adata = combined_data[0].concatenate(combined_data[1:])
 
-    naivedata = karthik_basic_filter(naivedata)
-    # naivedata.write(str(Path(h5_out_dir) / f'{data_type}_adata.h5ad'))
-    naivedata = karthik_annotate_data(naivedata)
+    # ----- filter (not actually filtering anything), calculate QC metrics -----
+    combined_adata = karthik_basic_filter(combined_adata) # this adds the n_genes, n_counts layers
+    combined_adata = calculate_qc_metrics(combined_adata) # this adds more metadata layers
+    
+    # ----- log1p normalize -----
+    combined_adata = karthik_normalize_data(combined_adata)
 
-    rawcount_adata = adata.layers['counts']
-    rawcount_adata.write(str(Path(h5_out_dir) / f'{data_type}_raw_adata.h5ad'))
+    # --- save the raw count
+    combined_adata_raw = AnnData(X=combined_adata.layers['counts'])
+    combined_adata_raw.obs_names = combined_adata.obs_names
+    combined_adata_raw.var_names = combined_adata.var_names
+    #combined_adata_raw = combined_adata_raw[combined_adata.obs['cells_tokeep']==True, :]
+    Path(h5_out_dir).mkdir(parents=True, exist_ok=True)
+    if (Path(h5_out_dir) / f'{output_prefix}_raw_adata.h5ad').exists():
+        print(f"[WARNING] {output_prefix}_raw_adata.h5ad already exists! Overwriting...")
 
+    combined_adata_raw.write(str(Path(h5_out_dir) / f'{output_prefix}_raw_adata.h5ad'))
+
+    # ----- for each individual sample, identify the highly variable genes -----
     highly_variable = []
-    for sample_name in naivedata.obs['batch'].unique():
+    # embed()
+    for sample_name in combined_adata.obs['sample_name'].unique():
 
-        result = sc.pp.highly_variable_genes(naivedata[naivedata.obs["batch"]==sample_name, :], min_mean=0.0125, max_mean=3, min_disp=0.5, inplace=False)
+        result = sc.pp.highly_variable_genes(combined_adata[combined_adata.obs["sample_name"]==sample_name, :], min_mean=0.0125, max_mean=3, min_disp=0.5, inplace=False)
         highly_variable.append(result['highly_variable'])
 
     highly_variable = np.array(highly_variable)
-    naivedata.var['highly_variable'] = np.sum(highly_variable, axis=0) > 6
+    combined_adata.var['highly_variable'] = np.sum(highly_variable, axis=0) > 6 # highly variable in greater than 6 samples
+
+    # ----- for all samples combined, identify the highly variable genes -----
+    topgenes = combined_adata.var_names[
+        np.argsort(
+            np.sum(combined_adata.X, axis=0)/np.sum(combined_adata.X)
+            )
+            ].flatten()[-50:] 
     
-    topgenes = list(naivedata.var_names[np.argsort(np.sum(naivedata.X, axis=0)/np.sum(naivedata.X))])[-50:]
-    
-    sc.tl.rank_genes_groups(naivedata, "batch", method='t-test', n_genes=500, use_raw=True)
+    sc.tl.rank_genes_groups(combined_adata, "sample_name", method='t-test', n_genes=500, use_raw=True)
     
     patientspecificgenes = set()
-    for genes in naivedata.uns['rank_genes_groups']['names']:
+    for genes in combined_adata.uns['rank_genes_groups']['names']:
         for gene in genes:
             patientspecificgenes.add(gene)
 
     highest_expressed = []
     embed()
-    for gene in naivedata.var_names:
+    for gene in combined_adata.var_names:
         if gene in topgenes: # or gene in patientspecificgenes:
             highest_expressed.append(True)
         else:
             highest_expressed.append(False)
     highest_expressed = np.array(highest_expressed)
     
-    naivedata.var['highly_variable'] = ~(naivedata.var_names.str.startswith("MT-")) & ~(naivedata.var_names.str.startswith("RP")) & (naivedata.var['highly_variable']) & ~(highest_expressed)
+    combined_adata.var['highly_variable'] = ~(combined_adata.var_names.str.startswith("MT-")) & ~(combined_adata.var_names.str.startswith("RP")) & (combined_adata.var['highly_variable']) & ~(highest_expressed)
     
-    print(len(patientspecificgenes), sum(naivedata.var['highly_variable']))
+    print(f"number of patient specific genes: {len(patientspecificgenes)} ")
+    print(f"highly variable genes in at least 7 patients: {sum(combined_adata.var['highly_variable'])} ")
 
-    naivedata = karthik_plot_QC(naivedata)
-    naivedata = karthik_analyze_data(naivedata)
+    combined_adata = karthik_plot_QC(combined_adata, sample_name = output_prefix)
+    combined_adata = karthik_analyze_data(combined_adata) # PCA, leiden ...
 
-    sc.settings.figdir = sc.settings.figdir + '/UMAPs'
-    Path(sc.settings.figdir).mkdir(parents=True, exist_ok=True)
-    naivedata = karthik_more_plots(naivedata)
-        
-    del naivedata.uns['rawcount']
+    # sc.settings.figdir = sc.settings.figdir + '/UMAPs'
+    # Path(sc.settings.figdir).mkdir(parents=True, exist_ok=True)
+    combined_adata = karthik_more_plots(combined_adata, sample_name = output_prefix)
     
-    naivedata.write(str(Path(h5_out_dir) / f'{data_type}_adata.h5ad'))
-    return naivedata, rawcount_adata
+    combined_adata.write(str(Path(h5_out_dir) / f'{output_prefix}_adata.h5ad'))
+    return combined_adata, combined_adata_raw
