@@ -11,7 +11,6 @@
 
 # ----- scanpy -----
 mamba create -n scanpy -c conda-forge scanpy python-igraph leidenalg r-essentials r-base=4.2.2
-pip install ipython
 # # or we can directly install scanpy from Github
 # cd /home/zhangh5/work/prePOLAR/analysis/tools
 # git@github.com:scverse/scanpy.git
@@ -20,7 +19,7 @@ pip install ipython
 
 # might need to update gcc for scrublet: 
 # mamba install gcc=12.2.0
-pip install scrublet
+# pip install scrublet
 # or if compilation does not work, use mamba
 # # mamba install -c bioconda scrublet
 
@@ -33,6 +32,9 @@ mamba install -c conda-forge python-annoy
 pip install harmony-pytorch
 
 # ######## [OPTIONAL] #########
+
+# # ----- Jupyter -----
+# mamba install ipykernel ipython
 
 # # ----- R -----
 # mamba install r-essentials r-base=4.2.2 r-devtools r-gam r-RColorBrewer r-BiocManager r-Seurat r-sctransform

@@ -31,7 +31,7 @@ SAMPLE_ID=PP22
 # SAMPLE_NAME=$(echo $H5_i | cut -d / -f 7) # e.g. EK-1663_PP01_IR0007
 SAMPLE_NAME=$(basename $H5_i | cut -d . -f 1) # e.g. EK-1663_PP01_IR0007
 F_NAME=${SAMPLE_ID}.cr.raw_feature_bc_matrix.h5
-# rsync -avzu $H5_i zhangh5@lilac.mskcc.org:/home/zhangh5/work/prePOLAR/raw_CR_outputs//${F_NAME}
+# rsync -avzu $H5_i zhangh5@lilac.mskcc.org:/home/zhangh5/work/prePOLAR/raw_CR_outputs/${F_NAME}
 
 
 mkdir -p ${OUTPUT_DIR}/${SAMPLE_ID}
